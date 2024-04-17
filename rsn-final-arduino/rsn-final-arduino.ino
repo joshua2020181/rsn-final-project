@@ -1,31 +1,25 @@
-#include <SparkFun_TB6612.h>
+#include <Servo.h>
 
-const int PAN_PWM = 11;
-const int PAN_IN_1 = 13;
-const int PAN_IN_2 = 12;
+#define PAN_SERVO_PIN 9
+#define TILT_SERVO_PIN 10
+#define CENTER_VAL 1000
 
-const int TILT_PWM = 10;
-const int TILT_IN_1 = 9;
-const int TILT_IN_2 = 8;
+int pan_pos = 90;
+int tilt_pos = 90;
 
-const int STANDBY = 7;
-
-const int DEFAULT_DURATION = 250;
-
-Motor pan = Motor(PAN_IN_1, PAN_IN_2, PAN_PWM, 1, STANDBY);
-Motor tilt = Motor(TILT_IN_1, TILT_IN_2, TILT_PWM, 1, STANDBY);
+Servo pan;
+Servo tilt;
 
 void setup() {
-  // put your setup code here, to run once:
   Serial.begin(115200);
-  pinMode(PAN_IN_1, OUTPUT);
-  pinMode(PAN_IN_2, OUTPUT);
-  pinMode(TILT_IN_1, OUTPUT);
-  pinMode(TILT_IN_2, OUTPUT);
+  pan.attach(PAN_SERVO_PIN);
+  tilt.attach(TILT_SERVO_PIN);
 }
 
-bool isValid(int val) {
-  return val >= -255 && val <= 255;
+
+// map value to be between 0, 180
+int adjust_val(int val) {
+  return min(150, max(30, val));
 }
 
 String readLastString() {
@@ -43,14 +37,24 @@ void loop() {
     if (separatorIndex != -1) {
       int pos1 = input.substring(0, separatorIndex).toInt();
       int pos2 = input.substring(separatorIndex + 1).toInt();
-      Serial.println("pos1: " + String(pos1) + " pos 2: " + String(pos2));
 
-      if (!isValid(pos1) || !isValid(pos2)) {
-        Serial.println("Error");
-      } else {
-        pan.drive(pos1, DEFAULT_DURATION);
-        tilt.drive(pos2, DEFAULT_DURATION);
+      if (pos1 == CENTER_VAL) {
+        pos1 = 90 - pan_pos;
       }
+      if (pos2 == CENTER_VAL) {
+        pos2 = 90 - tilt_pos;
+      }
+
+
+      pan_pos = adjust_val(pan_pos + pos1);
+      tilt_pos = adjust_val(tilt_pos + pos2);
+
+      Serial.println("pan: " + String(pan_pos) + " tilt: " + String(tilt_pos));
+
+      pan.write(pan_pos);
+      tilt.write(tilt_pos);
+
+      
     }
   }
 }

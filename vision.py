@@ -6,21 +6,26 @@ import time
 ARDUINO_PORT = '/dev/ttyUSB0'
 ARDUINO_BAUDRATE = 115200
 
-MAX_SEND_RATE = 0.2  # seconds
+MAX_SEND_RATE = 0.1  # seconds
+CENTER_VAL = 1000  # value to send to indicate centering the servos
 
 serial_port = serial.Serial(ARDUINO_PORT, ARDUINO_BAUDRATE)
 print("Serial port opened")
 
-last_sent = time.time()
 
-def detect_orange_ball(image):
+def detect_ball(image):
     # convert image to HSV
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    # define range of orange color in HSV
-    lower_orange = np.array([10, 100, 100])
-    upper_orange = np.array([20, 255, 255])
-    # threshold the HSV image to get only orange colors
-    mask = cv2.inRange(hsv, lower_orange, upper_orange)
+
+    # define range of color in HSV
+    # lower = np.array([10, 100, 100])
+    # upper = np.array([20, 255, 255])
+    # detect blue
+    lower = np.array([100, 100, 100])
+    upper = np.array([140, 255, 255])
+    # threshold the HSV image to get only pixels within the range
+
+    mask = cv2.inRange(hsv, lower, upper)
     mask = cv2.erode(mask, None, iterations=2)
     mask = cv2.dilate(mask, None, iterations=2)
 
@@ -41,45 +46,49 @@ def draw_center(image):
     cv2.line(image, (0, height//2), (width, height//2), (0, 0, 255), 2)
     cv2.line(image, (width//2, 0), (width//2, height), (0, 0, 255), 2)
 
-def move_motors(ball, center):
-    pan_val = 0
-    tilt_val = 0
-    if ball[0] < center[0]:
-        # print("Move left")
-        pan_val = -60
-    elif ball[0] > center[0]:
-        # print("Move right")
-        pan_val = 60
-    if ball[1] < center[1]:
-        # print("Move up")
-        tilt_val = 50
-    elif ball[1] > center[1]:
-        # print("Move down")
-        tilt_val = -50
+def move_motors(ball, center, last_sent, last_detected):
+    pan_difference = center[0] - ball[0]
+    pan_val = pan_difference // (35 if abs(pan_difference) > 100 else 40)
+    tilt_difference = ball[1] - center[1]
+    tilt_val = tilt_difference // (35 if abs(tilt_difference) > 100 else 40)
+
+    # if abs(pan_val) < 2:
+    #     pan_val = 0
+    # if abs(tilt_val) < 2:
+    #     tilt_val = 0
+    
     print(f"Pan: {pan_val}, Tilt: {tilt_val}")
-    global last_sent
     if time.time() - last_sent > MAX_SEND_RATE:
         last_sent = time.time()
         serial_port.write(f"{pan_val};{tilt_val}\n".encode())
+    if time.time() - last_detected > 5:
+        serial_port.write(f"{CENTER_VAL};{CENTER_VAL}\n".encode())
 
 
 def main():
     cap = cv2.VideoCapture(0)
+    last_sent = time.time()
+    last_detected = time.time()
     while True:
         ret, frame = cap.read()
+        # rotate frame 90 degrees clockwise
+        frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        # frame = cv2.flip(frame, 1)
         center_x, center_y = frame.shape[1]//2, frame.shape[0]//2
         if not ret:
             break
-        ball = detect_orange_ball(frame)
+        ball = detect_ball(frame)
         if ball:
             draw_circle(frame, ball)
             # print(f"Ball position: {ball[0]}, {ball[1]}")
-            move_motors(ball, (center_x, center_y))
+            last_detected = time.time()
+            move_motors(ball, (center_x, center_y), last_sent, last_detected)
         else:
-            move_motors((center_x, center_y), (center_x, center_y))
+            move_motors((center_x, center_y), (center_x, center_y), last_sent, last_detected)
         draw_center(frame)
         cv2.imshow('frame', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
+            serial_port.write("f{CENTER_VAL};{CENTER_VAL}\n".encode())
             break
     cap.release()
     cv2.destroyAllWindows()
