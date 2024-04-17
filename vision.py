@@ -21,8 +21,11 @@ def detect_ball(image):
     # lower = np.array([10, 100, 100])
     # upper = np.array([20, 255, 255])
     # detect blue
-    lower = np.array([100, 100, 100])
-    upper = np.array([140, 255, 255])
+    # lower = np.array([100, 100, 100])
+    # upper = np.array([140, 255, 255])
+    # detect green
+    lower = np.array([40, 100, 100])
+    upper = np.array([80, 255, 255])
     # threshold the HSV image to get only pixels within the range
 
     mask = cv2.inRange(hsv, lower, upper)
@@ -37,6 +40,15 @@ def detect_ball(image):
         ((x, y), radius) = cv2.minEnclosingCircle(c)
         return (int(x), int(y), int(radius))
     return None
+
+def detect_face(image):
+    img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+    faces = face_cascade.detectMultiScale(img_gray, 1.3, 5)
+    if len(faces) > 0:
+        face = faces[0]
+        return (face[0] + face[2]//2, face[1] + face[3]//2, face[2]//2)
+
 
 def draw_circle(image, ball):
     cv2.circle(image, (ball[0], ball[1]), ball[2], (0, 255, 0), 2)
@@ -78,7 +90,8 @@ def main():
         if not ret:
             break
         ball = detect_ball(frame)
-        if ball:
+        # ball = detect_face(frame)
+        if ball is not None:
             draw_circle(frame, ball)
             # print(f"Ball position: {ball[0]}, {ball[1]}")
             last_detected = time.time()
